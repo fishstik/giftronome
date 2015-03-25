@@ -1,6 +1,7 @@
 socket = require "socket"
 http = require "socket.http"
---winapi = require "winapi"
+winapi = require "winapi"
+utf8_validator = require "utf8_validator"
 
 --love2d shortcuts
 	gfx = love.graphics
@@ -31,15 +32,15 @@ http = require "socket.http"
 
 --nonconfiguration vars
 	--file loading
+		files = {}
+		folders = {}
 		images = {}
-		imagenames = {}
 
 	--image viewing
-		select = 1 		--which folder of pictures to loop through
-		n = 1 			--which picture in the current folder is being displayed
-		div = {} 		--number of beats per image loop (retrieved from config.txt, default=1)
-		light = {}	 	--boolean: is the folder of pictures mostly light or dark? (retrieved from config.txt, default=false)
-		gifcount = 0
+		select 	= 1 	--which folder of pictures to loop through
+		n 		= 1 	--which picture in the current folder is being displayed
+		div 	= {} 	--number of beats per image loop (retrieved from config.txt, default=1)
+		light 	= {} 	--boolean: is the folder of pictures mostly light or dark? (retrieved from config.txt, default=false)
 
 	--timing
 		paused = false
@@ -72,53 +73,25 @@ http = require "socket.http"
 		white = {255, 255, 255}
 
 function love.load() --TODO: Automatically determine if the gif is dark or light (using ImageData:getPixel)
-	--retrieve gifs and config files
-		local files = {}
-		local frames = {}
-		local grabframes = true
-
-		files = filesys.getDirectoryItems("gifs/")
-		for i = 1, #files, 1 do
-			local fileext = tostring(files[i]:match("[^.]+.(.+)")) --extract file extension
-			
-			if fileext == "gif" then
-				print(string.format("Found gif %s", files[i]))
-				local filename = string.sub(files[i], 1, -5) --without extension
-
-				frames = filesys.getDirectoryItems("frames/"..filename) --check if frames already exist
-				if #frames == 0 then --if they don't, explode
-					print("Frames not found. Exploding...")
-					os.execute("gifexpl "..files[i]) --explode gif to tmp
-
-					frames = filesys.getDirectoryItems("frames/"..filename)
-					if #frames == 0 then
-						print("ERROR: No frames exploded. Skipping "..files[i])
-						grabframes = false
-					end
-				else --if frames found, skip explosion and grab them
-					print("Frames found. Skipping explosion.")
+	--retrieve files
+		folders = filesys.getDirectoryItems("/loops")
+		for i = 1, #folders, 1 do
+			div[i] = 1
+			light[i] = false
+			files[i] = filesys.getDirectoryItems(string.format("loops/%s", folders[i]))
+			images[i] = {}
+			local k = 0
+			for j = 1, #files[i], 1 do --loop thru files in each folder
+				fileext = tostring((files[i][j]):match("[^.]+.(.+)")) --extract file extension
+				if fileext == "gif" or fileext == "png" or fileext == "jpg" or fileext == "bmp" then
+					k = k + 1
+					images[i][k] = gfx.newImage(string.format("loops/%s/%02s", folders[i], files[i][k])) --collect image files
+				elseif fileext == "txt" then
+					--open config txt file
+					config = filesys.read(string.format("loops/%s/%s", folders[i], files[i][j]))
+					div[i] = config:match("div=+(%d+)[\r\n]?") --look for 'div' parameter in config txt
+					light[i] = config:match("light=+(%l+)[\r\n]?") == "true" --look for 'light' parameter in config txt
 				end
-
-				--Grab frames and add to database
-				if grabframes then
-					gifcount = gifcount + 1
-					imagenames[gifcount] = filename
-					images[gifcount] = {}
-					div[gifcount] = 1
-					light[gifcount] = false
-
-					for k = 1, #frames, 1 do
-						images[gifcount][k] = gfx.newImage(string.format("frames/%s/%s", filename, frames[k])) --collect image file
-					end
-				end
-			elseif fileext == "txt" then
-				print("Found txt "..files[i])
-				--open config txt file
-				local config = filesys.read("gifs/"..files[i])
-				div[gifcount] = config:match("div=+(%d+)[\r\n]?") --look for 'div' parameter in config txt
-				light[gifcount] = config:match("light=+(%l+)[\r\n]?") == "true" --look for 'light' parameter in config txt
-			else
-				print("Ignoring file "..files[i])
 			end
 		end
 
@@ -150,11 +123,13 @@ function love.draw()
 
 		if inputMode_artist then gfx.setColor(red) end
 		if isUrlTempo then gfx.setColor(cyan) end
+		if not utf8_validator.validate(artist) then artist = "ERROR: NOT VALID UTF-8" end
 		gfx.print(string.format("artist: [%s]", artist), 0, 30)
 
 		gfx.setColor(maincolor)
 		if inputMode_song then gfx.setColor(red) end
 		if isUrlTempo then gfx.setColor(cyan) end
+		if not utf8_validator.validate(song) then song = "ERROR: NOT VALID UTF-8" end
 		gfx.print(string.format("song: [%s]", song), 0, 45)
 
 		gfx.setColor(maincolor)
@@ -172,19 +147,19 @@ function love.draw()
 			gfx.print("enter: input artist & song", 0, 210)
 			gfx.print("L: input last.fm user", 0, 225)
 			gfx.print("W: fetch last.fm playing", 0, 240)
-			--gfx.print("A/D: seek WPM", 0, 255)
-			--gfx.print("S: play/pause WMP", 0, 270)
+			gfx.print("A/D: seek WPM", 0, 255)
+			gfx.print("S: play/pause WMP", 0, 270)
 			
 		end
-		
-		if inputMode_lfm then gfx.setColor(red)	end
+
+		if inputMode_lfm then gfx.setColor(red) end
 		gfx.print(string.format("last.fm user: [%s]", lfmUser), 0, sheight-45)
 
 		gfx.setColor(maincolor)
 		local lfmcountdownprint = lfmCountDown - love.timer.getTime()
 		if paused then lfmcountdownprint = lfmcountdownprint + (love.timer.getTime() - time_paused) end
 		gfx.print(string.format("next fetch in %d:%02d", math.floor(lfmcountdownprint/60), math.floor(lfmcountdownprint % 60)), 0, sheight-30)
-		gfx.print(string.format("%d/%d: %s.%d", select, gifcount, imagenames[select], n), 0, sheight-15)
+		gfx.print(string.format("%d/%d: %s", select, #folders, files[select][n]), 0, sheight-15)
 end
 	
 function love.update(dt)
@@ -297,7 +272,7 @@ function love.keypressed(key)
 			end
 			if key == "left" then
 				if select == 1 then
-					select = gifcount
+					select = #folders
 				else
 					select = select - 1
 				end
@@ -307,7 +282,7 @@ function love.keypressed(key)
 				love.window.setMode(swidth, sheight, {borderless=borderless, resizable=resizable, display=windowflags["display"]})
 			end
 			if key == "right" then
-				if select == gifcount then
+				if select == #folders then
 					select = 1
 				else
 					select = select + 1
@@ -352,30 +327,15 @@ function love.keypressed(key)
 			if key == "w" then
 				req_lastfm()
 			end
-			-- if key == "a" then 
-			-- 	local wmpwindow = winapi.find_window("WMPlayerApp")
-			-- 	wmpwindow:send_message(273, 18810, 0) -- WMP Previous
-			-- 	delayedFetchEnabled = true
-			-- end
-			-- if key == "s" then
-			-- 	local wmpwindow = winapi.find_window("WMPlayerApp")
-			-- 	wmpwindow:send_message(273, 18808, 0) -- WMP Pause
+			if key == "a" then 
+				local wmpwindow = winapi.find_window("WMPlayerApp")
+				wmpwindow:send_message(273, 18810, 0) -- WMP Previous
+				delayedFetchEnabled = true
+			end
+			if key == "s" then
+				local wmpwindow = winapi.find_window("WMPlayerApp")
+				wmpwindow:send_message(273, 18808, 0) -- WMP Pause
 
-			-- 	if not paused then
-			-- 		time_paused = love.timer.getTime()
-			-- 		paused = true
-			-- 	else
-			-- 		lfmCountDown = lfmCountDown + love.timer.getTime() - time_paused --adjust countdown for paused time
-			-- 		time_paused = 0
-			-- 		paused = false
-			-- 	end
-			-- end
-			-- if key == "d" then
-			-- 	local wmpwindow = winapi.find_window("WMPlayerApp")
-			-- 	wmpwindow:send_message(273, 18811, 0) -- WMP Next
-			-- 	delayedFetchEnabled = true
-			-- end
-			if key == "audioplay" then
 				if not paused then
 					time_paused = love.timer.getTime()
 					paused = true
@@ -385,7 +345,9 @@ function love.keypressed(key)
 					paused = false
 				end
 			end
-			if key == "audioprev" or key == "audionext" then
+			if key == "d" then
+				local wmpwindow = winapi.find_window("WMPlayerApp")
+				wmpwindow:send_message(273, 18811, 0) -- WMP Next
 				delayedFetchEnabled = true
 			end
 			if key == "h" then
@@ -402,7 +364,7 @@ function love.keypressed(key)
 				else
 					tap2 = love.timer.getTime()
 					if tap2 - tap1 < tapRstDelay then
-						local bpmi = -60/(tap1-tap2)
+						bpmi = -60/(tap1-tap2)
 						table.insert(taps, bpmi)
 						sumTaps = 0
 						for i = 1, #taps, 1 do
@@ -428,7 +390,7 @@ function req_lastfm() --requests last.fm profile in "lfmUser" for now playing, c
 	print("\nlast.fm: Fetching now playing...")
 
 	if lfmUser ~= "" then
-		local lfm = http.request(string.format("http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&limit=1&user=%s&api_key=%s", lfmUser, lfmApi))
+		local lfm = http.request(string.format("http://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=%s&api_key=%s", lfmUser, lfmApi))
 		if lfm then
 			local x, a = string.find(lfm, '<track nowplaying="true">')
 			if a then
@@ -462,8 +424,7 @@ function req_lastfm() --requests last.fm profile in "lfmUser" for now playing, c
 		end
 	else
 		print("last.fm: Username is empty")
-		lfmCountDown = lfmCountDown_fallback + love.timer.getTime()
-		--lfmCountDown = 1 + love.timer.getTime()
+		lfmCountDown = 1 + love.timer.getTime()
 	end
 end
 
@@ -562,30 +523,30 @@ function req_lastfm_duration(art, son) --requests last.fm for duration of "son" 
 	end
 end
 
--- function req_wmp() --requests open WMP window for artist and song, calls req_echonest if found (only works if "Title - Artist" is in window title) (can continuously poll)
--- 	local disable = false
--- 	local wmpwindow = winapi.find_window("WMPlayerApp")
--- 	local wmptitle = tostring(wmpwindow)
--- 	wmptitle = winapi.encode(winapi.CP_ACP, winapi.CP_UTF8, wmptitle)
+function req_wmp() --requests open WMP window for artist and song, calls req_echonest if found (only works if "Title - Artist" is in window title) (can continuously poll)
+	local disable = false
+	local wmpwindow = winapi.find_window("WMPlayerApp")
+	local wmptitle = tostring(wmpwindow)
+	wmptitle = winapi.encode(winapi.CP_ACP, winapi.CP_UTF8, wmptitle)
 
--- 	if wmptitle ~= wmptitle_old then
--- 		wmptitle_old = wmptitle
--- 	else disable = true
--- 	end
--- 	local x, b = wmptitle:find(".* %- ")
--- 	if b and not disable then
--- 		song = wmptitle:sub(1, b-3)
--- 		local a = song:find("feat.")
--- 		if a then song = song:sub(1, a-3) end
+	if wmptitle ~= wmptitle_old then
+		wmptitle_old = wmptitle
+	else disable = true
+	end
+	local x, b = wmptitle:find(".* %- ")
+	if b and not disable then
+		song = wmptitle:sub(1, b-3)
+		local a = song:find("feat.")
+		if a then song = song:sub(1, a-3) end
 
--- 		artist = wmptitle:sub(b+1, #wmptitle)
--- 		artist = format_clsscl(artist)
+		artist = wmptitle:sub(b+1, #wmptitle)
+		artist = format_clsscl(artist)
 
--- 		print("WMP: Found now playing:\n   artist=%s\n   song=%s", artist, song)
+		print("WMP: Found now playing:\n   artist=%s\n   song=%s", artist, song)
 
--- 		req_echonest(artist, song) --echonest call
--- 	end
--- end
+		req_echonest(artist, song) --echonest call
+	end
+end
 
 function format_url(str)
 	local strtab = {}
