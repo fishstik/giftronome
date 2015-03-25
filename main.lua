@@ -536,7 +536,7 @@ function req_lastfm() --requests last.fm profile in "lfmUser" for now playing, c
 		end
 	else
 		print("last.fm: Username is empty")
-		lfmCountDown = 1 + love.timer.getTime()
+		lfmCountDown = lfmCountDown_fallback + love.timer.getTime()
 	end
 end
 
