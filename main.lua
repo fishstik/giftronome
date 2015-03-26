@@ -1,14 +1,15 @@
 function love.load() --TODO: Automatically determine if the gif is dark or light (using ImageData:getPixel)
-	socket = require "socket"
-	http = require "socket.http"
-	require "apis"
-	require "vars"
-	--winapi = require "winapi"
-
 	--love2d shortcuts
 		gfx = love.graphics
 		filesys = love.filesystem
 		keybd = love.keyboard
+
+
+	socket = require "socket"
+	http = require "socket.http"
+	--winapi = require "winapi"
+	require "apis"
+	require "vars"
 
 	--retrieve gifs and config files
 		local files = {}
