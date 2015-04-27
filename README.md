@@ -1,0 +1,1 @@
+Version for LOVE2D Android port. For debugging, touch callbacks are triggered by the mouse.
