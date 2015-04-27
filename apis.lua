@@ -122,17 +122,14 @@ function req_lastfm_duration(art, son) --requests last.fm for duration of "son" 
 			else
 				print(string.format("last.fm: Found duration %d s is too short, falling back to %d s", duration, lfmCountDown_fallback))
 				return false
-				--lfmCountDown = lfmCountDown_fallback + love.timer.getTime()
 			end
 		else
 			print(string.format("last.fm: Duration not found, falling back to %d s", lfmCountDown_fallback))
 			return false
-			--lfmCountDown = lfmCountDown_fallback + love.timer.getTime()
 		end
 	else
 		print(string.format("last.fm: Track request failed, falling back to %d s", lfmCountDown_fallback))
 		return false
-		--lfmCountDown = lfmCountDown_fallback + love.timer.getTime()
 	end
 end
 

@@ -4,7 +4,6 @@ function love.load() --TODO: Automatically determine if the gif is dark or light
 		filesys = love.filesystem
 		keybd = love.keyboard
 
-
 	socket = require "socket"
 	http = require "socket.http"
 	--winapi = require "winapi"
